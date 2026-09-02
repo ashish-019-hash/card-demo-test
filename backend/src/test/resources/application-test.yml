@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:carddemo-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+  servlet:
+    session:
+      cookie:
+        secure: false
+carddemo:
+  security:
+    csrf-cookie-secure: false
+  seed:
+    enabled: true
+    admin-user-id: ADMIN001
+    admin-password: AdminPassword!21
+    regular-user-id: REGULAR1
+    regular-password: RegularPassword!21
