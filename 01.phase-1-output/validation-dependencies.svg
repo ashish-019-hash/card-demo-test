@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1060" viewBox="0 0 1500 1060" role="img" aria-labelledby="title desc">
+  <title id="title">CardDemo validation rule dependencies</title>
+  <desc id="desc">Grouped validation rules for administrative menu, sign-on, user creation, user update, and user deletion. Solid arrows show validation sequence; dashed arrows show shared fields or conditional dependencies.</desc>
+  <style>
+    text { font-family: Arial, Helvetica, sans-serif; fill: #18212f; }
+    .title { font-size: 25px; font-weight: 700; }
+    .subtitle { font-size: 13px; fill: #4d5b6d; }
+    .group-title { font-size: 16px; font-weight: 700; }
+    .node-title { font-size: 13px; font-weight: 700; }
+    .node-text { font-size: 11px; }
+    .label { font-size: 11px; fill: #536273; }
+    .group { stroke-width: 2; rx: 12; }
+    .node { stroke: #52667d; stroke-width: 1.2; rx: 8; }
+    .field { fill: #fff7d6; stroke: #b5841a; stroke-width: 1.2; rx: 14; }
+    .seq { fill: none; stroke: #52667d; stroke-width: 1.8; marker-end: url(#arrow); }
+    .shared { fill: none; stroke: #b5841a; stroke-width: 1.7; stroke-dasharray: 6 4; marker-end: url(#arrow-gold); }
+    .conditional { fill: none; stroke: #8b5a9e; stroke-width: 1.7; stroke-dasharray: 4 4; marker-end: url(#arrow-purple); }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#52667d"/></marker>
+    <marker id="arrow-gold" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b5841a"/></marker>
+    <marker id="arrow-purple" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#8b5a9e"/></marker>
+  </defs>
+
+  <rect width="1500" height="1060" fill="#ffffff"/>
+  <text x="42" y="42" class="title">CardDemo validation dependencies</text>
+  <text x="42" y="65" class="subtitle">Solid: ordered validation flow · Gold dashed: shared field · Purple dashed: conditional prerequisite</text>
+
+  <!-- Administrative menu -->
+  <rect x="40" y="95" width="300" height="205" class="group" fill="#edf5ff" stroke="#4d83b8"/>
+  <text x="58" y="123" class="group-title">Administrative menu</text>
+  <rect x="65" y="145" width="250" height="70" class="node" fill="#ffffff"/>
+  <text x="78" y="169" class="node-title">RULE-VAL-001</text>
+  <text x="78" y="189" class="node-text">Option is numeric, nonzero,</text><text x="78" y="204" class="node-text">and within configured range.</text>
+  <rect x="65" y="235" width="250" height="42" class="field"/>
+  <text x="82" y="261" class="node-title">Shared field: Menu Option</text>
+  <path d="M190 235 L190 215" class="shared"/>
+
+  <!-- Sign-on -->
+  <rect x="380" y="95" width="510" height="355" class="group" fill="#effaf4" stroke="#438d63"/>
+  <text x="398" y="123" class="group-title">Sign-on and credentials</text>
+  <rect x="405" y="145" width="205" height="64" class="node" fill="#ffffff"/>
+  <text x="418" y="169" class="node-title">RULE-VAL-002</text><text x="418" y="190" class="node-text">User ID is required.</text>
+  <rect x="655" y="145" width="205" height="64" class="node" fill="#ffffff"/>
+  <text x="668" y="169" class="node-title">RULE-VAL-003</text><text x="668" y="190" class="node-text">Password is required.</text>
+  <rect x="405" y="260" width="205" height="70" class="node" fill="#ffffff"/>
+  <text x="418" y="284" class="node-title">RULE-VAL-005</text><text x="418" y="304" class="node-text">User ID must exist.</text>
+  <rect x="655" y="260" width="205" height="70" class="node" fill="#ffffff"/>
+  <text x="668" y="284" class="node-title">RULE-VAL-004</text><text x="668" y="304" class="node-text">Password must match record.</text>
+  <rect x="515" y="365" width="235" height="44" class="field"/>
+  <text x="537" y="392" class="node-title">Shared fields: User ID + Password</text>
+  <path d="M508 209 L508 260" class="seq"/><path d="M758 209 L758 260" class="seq"/>
+  <path d="M610 295 L655 295" class="conditional"/><text x="617" y="284" class="label">record found</text>
+  <path d="M515 365 L508 330" class="shared"/><path d="M750 365 L758 330" class="shared"/>
+
+  <!-- User creation -->
+  <rect x="930" y="95" width="530" height="355" class="group" fill="#fff5ed" stroke="#b66b31"/>
+  <text x="948" y="123" class="group-title">User creation</text>
+  <rect x="955" y="145" width="220" height="64" class="node" fill="#ffffff"/>
+  <text x="968" y="169" class="node-title">RULE-VAL-006 / 007</text><text x="968" y="190" class="node-text">First and Last Name required.</text>
+  <rect x="1205" y="145" width="220" height="64" class="node" fill="#ffffff"/>
+  <text x="1218" y="169" class="node-title">RULE-VAL-008 / 009</text><text x="1218" y="190" class="node-text">User ID and Password required.</text>
+  <rect x="955" y="260" width="220" height="64" class="node" fill="#ffffff"/>
+  <text x="968" y="284" class="node-title">RULE-VAL-010</text><text x="968" y="305" class="node-text">User Type is required.</text>
+  <rect x="1205" y="260" width="220" height="64" class="node" fill="#ffffff"/>
+  <text x="1218" y="284" class="node-title">RULE-VAL-011</text><text x="1218" y="305" class="node-text">User ID must be unique.</text>
+  <rect x="1060" y="365" width="265" height="44" class="field"/>
+  <text x="1083" y="392" class="node-title">Shared field: New User ID</text>
+  <path d="M1065 209 L1065 260" class="seq"/><path d="M1315 209 L1315 260" class="conditional"/>
+  <text x="1325" y="244" class="label">all required fields pass</text>
+  <path d="M1192 365 L1315 324" class="shared"/>
+
+  <!-- User update -->
+  <rect x="40" y="500" width="860" height="430" class="group" fill="#f6f0ff" stroke="#7954a1"/>
+  <text x="58" y="528" class="group-title">User lookup and update</text>
+  <rect x="65" y="552" width="190" height="65" class="node" fill="#ffffff"/>
+  <text x="78" y="576" class="node-title">RULE-VAL-012</text><text x="78" y="597" class="node-text">User ID is required.</text>
+  <rect x="315" y="552" width="240" height="65" class="node" fill="#ffffff"/>
+  <text x="328" y="576" class="node-title">RULE-VAL-013 / 014 / 015 / 016</text><text x="328" y="597" class="node-text">All editable user fields are required.</text>
+  <rect x="615" y="552" width="250" height="65" class="node" fill="#ffffff"/>
+  <text x="628" y="576" class="node-title">RULE-VAL-017</text><text x="628" y="597" class="node-text">Intended: User ID must exist.</text>
+  <rect x="465" y="702" width="350" height="72" class="node" fill="#ffffff"/>
+  <text x="478" y="726" class="node-title">RULE-VAL-018</text><text x="478" y="747" class="node-text">At least one editable field must change.</text>
+  <rect x="80" y="845" width="220" height="44" class="field"/>
+  <text x="97" y="872" class="node-title">Shared field: User ID</text>
+  <rect x="625" y="845" width="220" height="44" class="field"/>
+  <text x="642" y="872" class="node-title">Shared fields: Editable attributes</text>
+  <path d="M255 584 L315 584" class="seq"/>
+  <path d="M555 584 L615 584" class="conditional"/>
+  <text x="558" y="570" class="label">required fields pass</text>
+  <path d="M740 617 L640 702" class="conditional"/>
+  <text x="720" y="666" class="label">intended: successful READ</text>
+  <text x="210" y="655" class="label">Legacy quirk: NOTFND sets an error after the guard;</text>
+  <text x="210" y="671" class="label">REWRITE is not cleanly gated by a second flag check.</text>
+  <path d="M190 845 L160 617" class="shared"/><path d="M735 845 L435 617" class="shared"/><path d="M735 845 L640 702" class="shared"/>
+
+  <!-- User deletion -->
+  <rect x="940" y="500" width="520" height="430" class="group" fill="#fff0f0" stroke="#b55151"/>
+  <text x="958" y="528" class="group-title">User deletion</text>
+  <rect x="970" y="565" width="205" height="70" class="node" fill="#ffffff"/>
+  <text x="983" y="589" class="node-title">RULE-VAL-019</text><text x="983" y="610" class="node-text">User ID is required.</text>
+  <rect x="1215" y="565" width="205" height="70" class="node" fill="#ffffff"/>
+  <text x="1228" y="589" class="node-title">RULE-VAL-020</text><text x="1228" y="610" class="node-text">User ID must exist.</text>
+  <rect x="1080" y="720" width="230" height="44" class="field"/>
+  <text x="1101" y="747" class="node-title">Shared field: User ID</text>
+  <path d="M1175 600 L1215 600" class="conditional"/><text x="1178" y="584" class="label">non-empty ID</text>
+  <path d="M1195 720 L1070 635" class="shared"/><path d="M1195 720 L1318 635" class="shared"/>
+
+  <!-- Cross-transaction shared field -->
+  <path d="M625 409 C610 460 400 470 190 500" class="shared"/>
+  <text x="405" y="470" class="label">User ID shared across sign-on, update, and deletion</text>
+  <path d="M190 889 C370 980 995 980 1195 764" class="shared"/>
+</svg>
