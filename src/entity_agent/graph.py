@@ -7,7 +7,13 @@ from typing import TypedDict
 from langchain_core.exceptions import OutputParserException
 from langchain_openai import AzureChatOpenAI
 from langgraph.graph import END, START, StateGraph
-from openai import OpenAIError
+from openai import (
+    AuthenticationError,
+    BadRequestError,
+    NotFoundError,
+    OpenAIError,
+    PermissionDeniedError,
+)
 from pydantic import ValidationError
 
 from entity_agent.config import Settings
@@ -22,12 +28,14 @@ class AgentState(TypedDict, total=False):
     pages: list[PageText]
     chunks: list[str]
     chunk_results: list[Entity]
+    failed_chunks: int
     entities: list[Entity]
     warnings: list[str]
     result: ExtractionResult
 
 
 MODEL_ERRORS = (OpenAIError, OutputParserException, ValidationError, ValueError, TypeError)
+FATAL_MODEL_ERRORS = (AuthenticationError, PermissionDeniedError, NotFoundError, BadRequestError)
 
 
 def create_model(settings: Settings) -> AzureChatOpenAI:
@@ -69,6 +77,7 @@ def build_graph(
     def extract_chunks(state: AgentState) -> AgentState:
         entities: list[Entity] = []
         warnings = list(state.get("warnings", []))
+        failed_chunks = 0
         for index, chunk in enumerate(state["chunks"], start=1):
             try:
                 response = structured_model.invoke(
@@ -78,9 +87,18 @@ def build_graph(
                     ]
                 )
                 entities.extend(response.entities)
+            except FATAL_MODEL_ERRORS:
+                raise
             except MODEL_ERRORS as exc:
+                failed_chunks += 1
                 warnings.append(f"Chunk {index} extraction failed: {type(exc).__name__}")
-        return {"chunk_results": entities, "warnings": warnings}
+        if state["chunks"] and failed_chunks == len(state["chunks"]):
+            raise RuntimeError("Entity extraction failed for every document chunk.")
+        return {
+            "chunk_results": entities,
+            "failed_chunks": failed_chunks,
+            "warnings": warnings,
+        }
 
     def reconcile_entities(state: AgentState) -> AgentState:
         candidates = state.get("chunk_results", [])
@@ -92,10 +110,34 @@ def build_graph(
             key = (entity.entity_type.strip().casefold(), entity.name.strip().casefold())
             grouped.setdefault(key, []).append(entity)
 
+        merged_candidates: list[Entity] = []
+        for group in grouped.values():
+            merged = max(group, key=lambda item: item.confidence).model_copy(deep=True)
+            evidence_keys = {(item.page, item.quote) for item in merged.evidence}
+            attribute_keys = {
+                (item.name.strip().casefold(), json.dumps(item.value, sort_keys=True))
+                for item in merged.attributes
+            }
+            for duplicate in group:
+                for evidence in duplicate.evidence:
+                    key = (evidence.page, evidence.quote)
+                    if key not in evidence_keys:
+                        merged.evidence.append(evidence)
+                        evidence_keys.add(key)
+                for attribute in duplicate.attributes:
+                    key = (
+                        attribute.name.strip().casefold(),
+                        json.dumps(attribute.value, sort_keys=True),
+                    )
+                    if key not in attribute_keys:
+                        merged.attributes.append(attribute)
+                        attribute_keys.add(key)
+            merged_candidates.append(merged)
+
         batches: list[list[Entity]] = []
         current_batch: list[Entity] = []
         current_size = 0
-        for entity in (item for group in grouped.values() for item in group):
+        for entity in merged_candidates:
             entity_size = len(entity.model_dump_json())
             if current_batch and (len(current_batch) >= 40 or current_size + entity_size > 50_000):
                 batches.append(current_batch)
@@ -117,6 +159,8 @@ def build_graph(
                     ]
                 )
                 entities.extend(response.entities)
+            except FATAL_MODEL_ERRORS:
+                raise
             except MODEL_ERRORS as exc:
                 warnings.append(
                     f"Reconciliation batch failed ({type(exc).__name__}); kept raw candidates."

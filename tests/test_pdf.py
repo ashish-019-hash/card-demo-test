@@ -25,3 +25,16 @@ def test_chunk_pages_makes_progress_with_large_overlap() -> None:
 
     assert 1 < len(chunks) < 20
     assert all(chunk.startswith("[PAGE 1]\n") for chunk in chunks)
+
+
+def test_chunk_pages_packs_short_consecutive_pages() -> None:
+    pages = [
+        PageText(page=1, text="Customer Acme", extraction_method="native"),
+        PageText(page=2, text="Account 123", extraction_method="native"),
+    ]
+
+    chunks = chunk_pages(pages, chunk_size=1000, overlap=100)
+
+    assert len(chunks) == 1
+    assert "[PAGE 1]\nCustomer Acme" in chunks[0]
+    assert "[PAGE 2]\nAccount 123" in chunks[0]
