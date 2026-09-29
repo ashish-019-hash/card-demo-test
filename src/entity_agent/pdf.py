@@ -46,20 +46,23 @@ def chunk_pages(pages: list[PageText], chunk_size: int, overlap: int) -> list[st
     """Create bounded chunks while preserving page markers for evidence references."""
     if overlap >= chunk_size:
         raise ValueError("Chunk overlap must be smaller than chunk size.")
-    document_text = "\n\n".join(f"[PAGE {page.page}]\n{page.text}" for page in pages if page.text)
-    if not document_text:
-        return []
-
     chunks: list[str] = []
-    start = 0
-    while start < len(document_text):
-        end = min(start + chunk_size, len(document_text))
-        if end < len(document_text):
-            boundary = document_text.rfind("\n", start + chunk_size // 2, end)
-            if boundary > start:
-                end = boundary
-        chunks.append(document_text[start:end])
-        if end == len(document_text):
-            break
-        start = end - overlap
+    for page in pages:
+        if not page.text:
+            continue
+        marker = f"[PAGE {page.page}]\n"
+        available = chunk_size - len(marker)
+        if available <= overlap:
+            raise ValueError("Chunk size is too small for page markers and overlap.")
+        start = 0
+        while start < len(page.text):
+            end = min(start + available, len(page.text))
+            if end < len(page.text):
+                boundary = page.text.rfind("\n", start + available // 2, end)
+                if boundary > start and boundary - overlap > start:
+                    end = boundary
+            chunks.append(marker + page.text[start:end])
+            if end == len(page.text):
+                break
+            start = max(end - overlap, start + 1)
     return chunks

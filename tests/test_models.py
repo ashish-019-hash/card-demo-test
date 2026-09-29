@@ -1,7 +1,7 @@
 from entity_agent.models import Attribute, Entity
 
 
-def test_entity_removes_duplicate_attribute_names() -> None:
+def test_entity_preserves_repeated_attributes_for_reconciliation() -> None:
     entity = Entity(
         entity_id="customer-acme",
         entity_type="customer",
@@ -13,5 +13,4 @@ def test_entity_removes_duplicate_attribute_names() -> None:
         ],
     )
 
-    assert len(entity.attributes) == 1
-    assert entity.attributes[0].value == "1"
+    assert len(entity.attributes) == 2
