@@ -1,10 +1,14 @@
 import json
+import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import TypedDict
 
+from langchain_core.exceptions import OutputParserException
 from langchain_openai import AzureChatOpenAI
 from langgraph.graph import END, START, StateGraph
+from openai import OpenAIError
+from pydantic import ValidationError
 
 from entity_agent.config import Settings
 from entity_agent.models import ChunkExtraction, Entity, ExtractionResult, PageText
@@ -21,6 +25,9 @@ class AgentState(TypedDict, total=False):
     entities: list[Entity]
     warnings: list[str]
     result: ExtractionResult
+
+
+MODEL_ERRORS = (OpenAIError, OutputParserException, ValidationError, ValueError, TypeError)
 
 
 def create_model(settings: Settings) -> AzureChatOpenAI:
@@ -42,8 +49,7 @@ def build_graph(
     """Build the extraction workflow. A model factory can be injected for tests."""
     config = settings or Settings()
     model = model_factory(config)
-    extractor = model.with_structured_output(ChunkExtraction)
-    reconciler = model.with_structured_output(ChunkExtraction)
+    structured_model = model.with_structured_output(ChunkExtraction)
 
     def load_document(state: AgentState) -> AgentState:
         path = Path(state["input_path"])
@@ -62,40 +68,90 @@ def build_graph(
 
     def extract_chunks(state: AgentState) -> AgentState:
         entities: list[Entity] = []
+        warnings = list(state.get("warnings", []))
         for index, chunk in enumerate(state["chunks"], start=1):
-            response = extractor.invoke(
-                [
-                    ("system", EXTRACTION_SYSTEM_PROMPT),
-                    ("human", f"Extract entities from chunk {index}:\n\n{chunk}"),
-                ]
-            )
-            entities.extend(response.entities)
-        return {"chunk_results": entities}
+            try:
+                response = structured_model.invoke(
+                    [
+                        ("system", EXTRACTION_SYSTEM_PROMPT),
+                        ("human", f"Extract entities from chunk {index}:\n\n{chunk}"),
+                    ]
+                )
+                entities.extend(response.entities)
+            except MODEL_ERRORS as exc:
+                warnings.append(f"Chunk {index} extraction failed: {type(exc).__name__}")
+        return {"chunk_results": entities, "warnings": warnings}
 
     def reconcile_entities(state: AgentState) -> AgentState:
         candidates = state.get("chunk_results", [])
         if not candidates:
             return {"entities": []}
-        payload = json.dumps([entity.model_dump(mode="json") for entity in candidates])
-        response = reconciler.invoke(
-            [
-                ("system", RECONCILIATION_SYSTEM_PROMPT),
-                ("human", f"Reconcile these candidates from one document:\n\n{payload}"),
-            ]
-        )
-        return {"entities": response.entities}
+        warnings = list(state.get("warnings", []))
+        grouped: dict[tuple[str, str], list[Entity]] = {}
+        for entity in candidates:
+            key = (entity.entity_type.strip().casefold(), entity.name.strip().casefold())
+            grouped.setdefault(key, []).append(entity)
+
+        batches: list[list[Entity]] = []
+        current_batch: list[Entity] = []
+        current_size = 0
+        for entity in (item for group in grouped.values() for item in group):
+            entity_size = len(entity.model_dump_json())
+            if current_batch and (len(current_batch) >= 40 or current_size + entity_size > 50_000):
+                batches.append(current_batch)
+                current_batch = []
+                current_size = 0
+            current_batch.append(entity)
+            current_size += entity_size
+        if current_batch:
+            batches.append(current_batch)
+
+        entities: list[Entity] = []
+        for batch in batches:
+            payload = json.dumps([entity.model_dump(mode="json") for entity in batch])
+            try:
+                response = structured_model.invoke(
+                    [
+                        ("system", RECONCILIATION_SYSTEM_PROMPT),
+                        ("human", f"Reconcile these candidates from one document:\n\n{payload}"),
+                    ]
+                )
+                entities.extend(response.entities)
+            except MODEL_ERRORS as exc:
+                warnings.append(
+                    f"Reconciliation batch failed ({type(exc).__name__}); kept raw candidates."
+                )
+                entities.extend(batch)
+        return {"entities": entities, "warnings": warnings}
 
     def validate_result(state: AgentState) -> AgentState:
         warnings = list(state.get("warnings", []))
         unique_ids: set[str] = set()
         valid_entities: list[Entity] = []
+        page_text = {page.page: page.text for page in state["pages"]}
+
+        def normalize(value: str) -> str:
+            return re.sub(r"\s+", " ", value).strip().casefold()
+
         for entity in state.get("entities", []):
             if entity.entity_id in unique_ids:
-                warnings.append(f"Removed duplicate entity id: {entity.entity_id}")
-                continue
+                base_id = entity.entity_id
+                suffix = 2
+                while f"{base_id}-{suffix}" in unique_ids:
+                    suffix += 1
+                entity.entity_id = f"{base_id}-{suffix}"
+                warnings.append(f"Renamed duplicate entity id to: {entity.entity_id}")
             unique_ids.add(entity.entity_id)
             if not entity.evidence and not any(item.evidence for item in entity.attributes):
                 warnings.append(f"Entity {entity.entity_id} has no source evidence.")
+            for evidence in entity.evidence + [
+                item for attribute in entity.attributes for item in attribute.evidence
+            ]:
+                source = page_text.get(evidence.page)
+                if source is None or normalize(evidence.quote) not in normalize(source):
+                    warnings.append(
+                        f"Entity {entity.entity_id} has unverified evidence on page {evidence.page}."
+                    )
             valid_entities.append(entity)
         result = ExtractionResult(
             document_name=state["document_name"], entities=valid_entities, warnings=warnings
