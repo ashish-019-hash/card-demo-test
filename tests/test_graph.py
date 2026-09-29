@@ -1,5 +1,9 @@
 from pathlib import Path
 
+import httpx
+import pytest
+from openai import AuthenticationError
+
 from entity_agent.config import Settings
 from entity_agent.graph import build_graph
 from entity_agent.models import Attribute, ChunkExtraction, Entity, Evidence, PageText
@@ -115,3 +119,65 @@ def test_graph_keeps_candidates_when_reconciliation_fails(monkeypatch) -> None:
 
     assert result.entities == [candidate]
     assert any("kept raw candidates" in warning for warning in result.warnings)
+
+
+def test_graph_propagates_fatal_azure_errors(monkeypatch) -> None:
+    settings = Settings(
+        AZURE_OPENAI_API_KEY="test",
+        AZURE_OPENAI_ENDPOINT="https://example.openai.azure.com/",
+        AZURE_OPENAI_DEPLOYMENT="test",
+    )
+    monkeypatch.setattr(
+        "entity_agent.graph.extract_pdf_pages",
+        lambda *_args, **_kwargs: (
+            [PageText(page=1, text="Customer Acme", extraction_method="native")],
+            [],
+        ),
+    )
+    response = httpx.Response(401, request=httpx.Request("POST", "https://example.com"))
+    error = AuthenticationError("bad credentials", response=response, body=None)
+    graph = build_graph(settings, model_factory=lambda _settings: FakeModel([error]))
+
+    with pytest.raises(AuthenticationError):
+        graph.invoke({"input_path": "sample.pdf"})
+
+
+def test_graph_renames_duplicate_ids_and_warns_for_bad_evidence(monkeypatch) -> None:
+    settings = Settings(
+        AZURE_OPENAI_API_KEY="test",
+        AZURE_OPENAI_ENDPOINT="https://example.openai.azure.com/",
+        AZURE_OPENAI_DEPLOYMENT="test",
+    )
+    valid = Evidence(page=1, quote="Customer Acme")
+    invalid = Evidence(page=9, quote="Invented quote")
+    first = Entity(
+        entity_id="customer",
+        entity_type="customer",
+        name="Acme",
+        confidence=0.9,
+        evidence=[valid],
+    )
+    second = Entity(
+        entity_id="customer",
+        entity_type="customer",
+        name="Beta",
+        confidence=0.8,
+        evidence=[invalid],
+    )
+    monkeypatch.setattr(
+        "entity_agent.graph.extract_pdf_pages",
+        lambda *_args, **_kwargs: (
+            [PageText(page=1, text="Customer Acme and Customer Beta", extraction_method="native")],
+            [],
+        ),
+    )
+    responses = [
+        ChunkExtraction(entities=[first, second]),
+        ChunkExtraction(entities=[first, second]),
+    ]
+    graph = build_graph(settings, model_factory=lambda _settings: FakeModel(responses))
+
+    result = graph.invoke({"input_path": "sample.pdf"})["result"]
+
+    assert [entity.entity_id for entity in result.entities] == ["customer", "customer-2"]
+    assert any("unverified evidence" in warning for warning in result.warnings)
