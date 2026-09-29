@@ -46,23 +46,38 @@ def chunk_pages(pages: list[PageText], chunk_size: int, overlap: int) -> list[st
     """Create bounded chunks while preserving page markers for evidence references."""
     if overlap >= chunk_size:
         raise ValueError("Chunk overlap must be smaller than chunk size.")
+    page_blocks = [f"[PAGE {page.page}]\n{page.text}" for page in pages if page.text]
     chunks: list[str] = []
-    for page in pages:
-        if not page.text:
+    packed = ""
+    for block in page_blocks:
+        separator = "\n\n" if packed else ""
+        if len(block) <= chunk_size and len(packed) + len(separator) + len(block) <= chunk_size:
+            packed += separator + block
             continue
-        marker = f"[PAGE {page.page}]\n"
+        if packed:
+            chunks.append(packed)
+            packed = ""
+
+        marker, page_text = block.split("\n", 1)
+        marker += "\n"
         available = chunk_size - len(marker)
+        if len(block) <= chunk_size:
+            packed = block
+            continue
+
         if available <= overlap:
             raise ValueError("Chunk size is too small for page markers and overlap.")
         start = 0
-        while start < len(page.text):
-            end = min(start + available, len(page.text))
-            if end < len(page.text):
-                boundary = page.text.rfind("\n", start + available // 2, end)
+        while start < len(page_text):
+            end = min(start + available, len(page_text))
+            if end < len(page_text):
+                boundary = page_text.rfind("\n", start + available // 2, end)
                 if boundary > start and boundary - overlap > start:
                     end = boundary
-            chunks.append(marker + page.text[start:end])
-            if end == len(page.text):
+            chunks.append(marker + page_text[start:end])
+            if end == len(page_text):
                 break
             start = max(end - overlap, start + 1)
+    if packed:
+        chunks.append(packed)
     return chunks

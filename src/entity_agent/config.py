@@ -20,8 +20,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_chunk_window(self) -> "Settings":
-        if self.chunk_overlap >= self.chunk_size:
+        if self.chunk_overlap > self.chunk_size // 2:
             raise ValueError(
-                "ENTITY_AGENT_CHUNK_OVERLAP must be smaller than ENTITY_AGENT_CHUNK_SIZE"
+                "ENTITY_AGENT_CHUNK_OVERLAP must not exceed half of ENTITY_AGENT_CHUNK_SIZE"
             )
         return self

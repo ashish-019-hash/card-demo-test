@@ -23,8 +23,8 @@ def extract(
     try:
         result = extract_document(pdf, Settings())
     except ValidationError as exc:
-        fields = ", ".join(".".join(map(str, item["loc"])) for item in exc.errors())
-        console.print(f"Extraction failed: invalid configuration fields: {fields}", markup=False)
+        details = ", ".join(".".join(map(str, item["loc"])) or item["msg"] for item in exc.errors())
+        console.print(f"Extraction failed: invalid configuration: {details}", markup=False)
         raise typer.Exit(code=1) from exc
     except (OpenAIError, ValueError, RuntimeError, OSError) as exc:
         console.print(f"Extraction failed: {type(exc).__name__}: {exc}", markup=False)
