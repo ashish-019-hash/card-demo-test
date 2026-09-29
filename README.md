@@ -146,4 +146,4 @@ This command does not remove `.env`. Remove `.env` separately if you need to cle
 - Azure `404`: Check the deployment name and API version.
 - Empty results: Confirm that the PDF contains readable text or a clear 300-DPI scan.
 - Incorrect mapping: Inspect each attribute's evidence. Low confidence indicates ambiguous context.
-- Large-document latency: Reduce `ENTITY_AGENT_CHUNK_SIZE` or use a faster Azure deployment.
+- Large-document latency: Increase `ENTITY_AGENT_CHUNK_SIZE` within the model context limit, or use a faster Azure deployment.

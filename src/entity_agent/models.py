@@ -1,6 +1,4 @@
-from typing import Any
-
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 
 class Evidence(BaseModel):
@@ -10,7 +8,7 @@ class Evidence(BaseModel):
 
 class Attribute(BaseModel):
     name: str = Field(min_length=1)
-    value: Any
+    value: str | int | float | bool | None
     confidence: float = Field(ge=0.0, le=1.0)
     evidence: list[Evidence] = Field(default_factory=list)
 
@@ -22,18 +20,6 @@ class Entity(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     attributes: list[Attribute] = Field(default_factory=list)
     evidence: list[Evidence] = Field(default_factory=list)
-
-    @model_validator(mode="after")
-    def unique_attribute_names(self) -> "Entity":
-        seen: set[str] = set()
-        unique: list[Attribute] = []
-        for attribute in self.attributes:
-            key = attribute.name.strip().casefold()
-            if key not in seen:
-                seen.add(key)
-                unique.append(attribute)
-        self.attributes = unique
-        return self
 
 
 class ExtractionResult(BaseModel):

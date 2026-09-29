@@ -46,20 +46,38 @@ def chunk_pages(pages: list[PageText], chunk_size: int, overlap: int) -> list[st
     """Create bounded chunks while preserving page markers for evidence references."""
     if overlap >= chunk_size:
         raise ValueError("Chunk overlap must be smaller than chunk size.")
-    document_text = "\n\n".join(f"[PAGE {page.page}]\n{page.text}" for page in pages if page.text)
-    if not document_text:
-        return []
-
+    page_blocks = [f"[PAGE {page.page}]\n{page.text}" for page in pages if page.text]
     chunks: list[str] = []
-    start = 0
-    while start < len(document_text):
-        end = min(start + chunk_size, len(document_text))
-        if end < len(document_text):
-            boundary = document_text.rfind("\n", start + chunk_size // 2, end)
-            if boundary > start:
-                end = boundary
-        chunks.append(document_text[start:end])
-        if end == len(document_text):
-            break
-        start = end - overlap
+    packed = ""
+    for block in page_blocks:
+        separator = "\n\n" if packed else ""
+        if len(block) <= chunk_size and len(packed) + len(separator) + len(block) <= chunk_size:
+            packed += separator + block
+            continue
+        if packed:
+            chunks.append(packed)
+            packed = ""
+
+        marker, page_text = block.split("\n", 1)
+        marker += "\n"
+        available = chunk_size - len(marker)
+        if len(block) <= chunk_size:
+            packed = block
+            continue
+
+        if available <= overlap:
+            raise ValueError("Chunk size is too small for page markers and overlap.")
+        start = 0
+        while start < len(page_text):
+            end = min(start + available, len(page_text))
+            if end < len(page_text):
+                boundary = page_text.rfind("\n", start + available // 2, end)
+                if boundary > start and boundary - overlap > start:
+                    end = boundary
+            chunks.append(marker + page_text[start:end])
+            if end == len(page_text):
+                break
+            start = max(end - overlap, start + 1)
+    if packed:
+        chunks.append(packed)
     return chunks
